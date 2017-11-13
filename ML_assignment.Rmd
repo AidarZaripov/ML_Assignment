@@ -1,0 +1,107 @@
+---
+title: "Machine Learning Course Final Assignment"
+author: "Aidar Zaripov"
+date: "November 11, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Download and read data
+
+Firstly, we download and read the data. 
+
+```{r a}
+setwd("C:/Users/miair/datasciencecoursera")
+if(!file.exists("./machinelearning")){dir.create("./machinelearning")}
+trainURL <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testURL  <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(trainURL, destfile = "./machinelearning/train.csv")
+download.file(testURL , destfile = "./machinelearning/test.csv" )
+train    <-read.csv("./machinelearning/train.csv")
+test     <-read.csv("./machinelearning/test.csv")
+```
+
+# Include required libraries
+
+```{r a1, message=FALSE}
+library("randomForest");
+library("caret");
+```
+
+# Cleaning Data
+
+Then we remove variables with NA, missing or error values.
+
+```{r b}
+missing_rate_train <- sapply(train, function(x) sum(is.na(x) | x == "" | x == "#DIV/0!"))/nrow(train)
+missing_rate_test  <- sapply(test , function(x) sum(is.na(x) | x == "" | x == "#DIV/0!"))/nrow(test)
+train_raw          <- train[, missing_rate_train == 0]
+test_raw           <- test [, missing_rate_test == 0]
+# Remove irrelevant variables
+train_raw          <- train_raw [, -c(1:7)] 
+test_raw           <- test_raw  [, -c(1:7)]
+```
+
+# Splitting data into validation and train sample
+
+Now we split our dataset into validation and train sample with proportion 30/70.
+
+```{r c}
+Val         <- createDataPartition(train_raw$classe, p = 0.7)
+TrainingV   <- train_raw[  Val[[1]], ] 
+ValidationV <- train_raw[ -Val[[1]], ]
+```
+
+# Data preprocessing
+
+We center and scale predictors (data prepocessing step).
+
+```{r d}
+preProcessed               <- preProcess(TrainingV[, 1:52])
+
+Centered_Scaled_train      <- predict(preProcessed, TrainingV[, 1:52])
+Final_CS_train             <- data.frame(classe = TrainingV$classe, Centered_Scaled_train)
+
+Centered_Scaled_validation <- predict(preProcessed, ValidationV[, 1:52])
+Final_CS_validation        <- data.frame(classe = ValidationV$classe, Centered_Scaled_validation)
+
+Centered_Scaled_test       <- predict(preProcessed, test_raw[, 1:52])
+Final_CS_test              <- data.frame(classe = NA, Centered_Scaled_test)
+```
+
+# Model fitting
+
+We fit random forest model on train sample.
+
+```{r e}
+modelRF <- randomForest(classe ~ ., data=Final_CS_train, method="class")
+```
+
+# Predictions 
+
+Then we apply the model to get predictions on validation and test sample.
+
+```{r f}
+predictions_train         <- predict(modelRF, Final_CS_train     , type = "class")
+predictions_validation    <- predict(modelRF, Final_CS_validation, type = "class")
+predictions_test          <- predict(modelRF, Final_CS_test      , type = "class")
+predictions_test
+```
+
+# Accuracy assesment 
+
+Finally we get confusion matrix and calculate accuracy results.
+
+```{r g}
+confusionMatrix(predictions_train     , Final_CS_train     $classe)
+confusionMatrix(predictions_validation, Final_CS_validation$classe)
+```
+
+# Conclusions
+
+The accuracy on validation sample for the Random Forest model on our data is 99.5%.
+The expected out-of-sample error is estimated as 1 - accuracy, so it is  0.5%.  
+
